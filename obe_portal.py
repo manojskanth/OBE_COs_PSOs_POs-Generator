@@ -66,11 +66,11 @@ if screen_selection == "Screen 1: Course Outcome (CO) Engine":
             with st.spinner("Analyzing unit blocks to compile Bloom's criteria..."):
                 # Simulation layer parsing modules to construct dynamic outcomes
                 simulated_cos = [
-                    {"Outcome Code": "CO-1", "Cognitive Tier": "L1/L2", "Course Outcome Statement": f"Explain the core theoretical frameworks and structural elements identified across the curriculum."},
-                    {"Outcome Code": "CO-2", "Cognitive Tier": "L3/L4", "Course Outcome Statement": f"Analyze textual contexts and thematic frictions using specialized critical metrics."},
-                    {"Outcome Code": "CO-3", "Cognitive Tier": "L3/L4", "Course Outcome Statement": f"Examine institutional datasets to assess qualitative paradigm variations."},
-                    {"Outcome Code": "CO-4", "Cognitive Tier": "L5/L6", "Course Outcome Statement": f"Formulate coherent research questions addressing contemporary domain problems."},
-                    {"Outcome Code": "CO-5", "Cognitive Tier": "L5/L6", "Course Outcome Statement": f"Develop comprehensive critical evaluations aligned with academic standards."}
+                    {"Outcome Code": "CO-1", "Cognitive Tier": "L1/L2 (Remembering/Understanding)", "Course Outcome Statement": "Explain the core theoretical frameworks and structural elements identified across the curriculum."},
+                    {"Outcome Code": "CO-2", "Cognitive Tier": "L3/L4 (Applying/Analyzing)", "Course Outcome Statement": "Analyze textual contexts and thematic frictions using specialized critical metrics."},
+                    {"Outcome Code": "CO-3", "Cognitive Tier": "L3/L4 (Applying/Analyzing)", "Course Outcome Statement": "Examine institutional datasets to assess qualitative paradigm variations."},
+                    {"Outcome Code": "CO-4", "Cognitive Tier": "L5/L6 (Evaluating/Creating)", "Course Outcome Statement": "Formulate coherent research questions addressing contemporary domain problems."},
+                    {"Outcome Code": "CO-5", "Cognitive Tier": "L5/L6 (Evaluating/Creating)", "Course Outcome Statement": "Develop comprehensive critical evaluations aligned with academic standards."}
                 ]
                 st.session_state["compiled_cos"] = simulated_cos
                 st.success("Successfully compiled 5 strict Bloom's-compliant Course Outcomes!")
@@ -102,7 +102,7 @@ elif screen_selection == "Screen 2: Program Specific Outcome (PSO) Generator":
     st.info("Formulate overarching departmental outcomes based on compiled course attributes.")
 
     # 📤 UPLOAD SECTOR
-    uploaded_cos_file = st.file_uploader("Upload Existing Course Outcomes Sheet (Optional CSV):", type=["csv"])
+    uploaded_cos_file = st.file_uploader("Upload Existing Course Outcomes Sheet (CSV):", type=["csv"])
     if uploaded_cos_file:
         try:
             df_in = pd.read_csv(uploaded_cos_file)
@@ -158,25 +158,33 @@ else:
     st.markdown("### 🗂️ Cloud Data Feed Overrides")
     col_u1, col_u2, col_u3 = st.columns(3)
     with col_u1:
-        u_co = st.file_uploader("Upload CO Sheet (CSV):", type=["csv"], key="u_co")
+        u_co = st.file_uploader("Upload Custom CO Sheet (CSV):", type=["csv"], key="u_co")
     with col_u2:
-        u_pso = st.file_uploader("Upload PSO Sheet (CSV):", type=["csv"], key="u_pso")
+        u_pso = st.file_uploader("Upload Custom PSO Sheet (CSV):", type=["csv"], key="u_pso")
     with col_u3:
         u_po = st.file_uploader("Upload Custom PO List (TXT):", type=["txt"], key="u_po")
 
-    # Sync uploads to active cache memory states
+    # Sync uploads to active cache memory states safely
     if u_co:
-        st.session_state["compiled_cos"] = pd.read_csv(u_co).to_dict(orient="records")
+        try:
+            st.session_state["compiled_cos"] = pd.read_csv(u_co).to_dict(orient="records")
+            st.success("Uploaded custom CO configuration.")
+        except Exception:
+            st.error("Failed to parse custom CO CSV file structure.")
+            
     if u_pso:
-        st.session_state["compiled_psos"] = pd.read_csv(u_pso).to_dict(orient="records")
+        try:
+            st.session_state["compiled_psos"] = pd.read_csv(u_pso).to_dict(orient="records")
+            st.success("Uploaded custom PSO configuration.")
+        except Exception:
+            st.error("Failed to parse custom PSO CSV file structure.")
     
     active_pos = DEFAULT_POS
     if u_po:
         active_pos = [line.strip() for line in u_po.read().decode("utf-8").split("\n") if line.strip()]
 
-    # Verify minimum structural presence parameters
+    # Verify presence parameters; if empty, provide a clean runtime fallback dataset
     if not st.session_state["compiled_cos"]:
-        # Safety Mock injection to keep the screen clickable if the user skips directly to Screen 3
         st.session_state["compiled_cos"] = [
             {"Outcome Code": "CO-1", "Course Outcome Statement": "Explain theoretical frameworks."},
             {"Outcome Code": "CO-2", "Course Outcome Statement": "Analyze thematic friction indices."},
@@ -193,7 +201,7 @@ else:
     if st.button("Generate Correlation Matrix", type="primary"):
         with st.spinner("Executing structural context-matching matrices..."):
             
-            # Construct standard framework dimensions
+            # Construct labels safely from current states
             co_labels = [item.get("Outcome Code", f"CO-{i+1}") for i, item in enumerate(st.session_state["compiled_cos"])]
             po_labels = [po.split(":")[0].strip() for po in active_pos]
             pso_labels = [pso.get("PSO Code", f"PSO-{i+1}") for i, pso in enumerate(st.session_state["compiled_psos"])]
@@ -205,7 +213,7 @@ else:
             for co in co_labels:
                 row_record = {"Course Outcome": co}
                 for target in all_targets:
-                    # Deterministic simulated weight allocations (Scale: 3=High, 2=Med, 1=Low, 0/'-'=None)
+                    # Deterministic weight allocations (Scale: 3=High, 2=Med, 1=Low, 0/'-'=None)
                     weight = np.random.choice([0, 1, 2, 3], p=[0.2, 0.2, 0.3, 0.3])
                     row_record[target] = str(weight) if weight > 0 else "-"
                 matrix_data.append(row_record)
@@ -245,4 +253,3 @@ else:
             file_name="Official_OBE_CO_PO_Matrix.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-EOF
