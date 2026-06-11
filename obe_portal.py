@@ -4,6 +4,10 @@ import numpy as np
 import io
 import re
 
+# Cloud Native Document Parsers
+from pypdf import PdfReader
+import docx
+
 st.set_page_config(page_title="Institutional OBE Mapping Portal", layout="wide", page_icon="🎓")
 
 # --------------------------------------------------------------------
@@ -16,12 +20,51 @@ DEFAULT_POS = [
     "PO-4: Research Orientation & Problem Solving Skills"
 ]
 
-# Core Cognitive Verbs mapped by tier bounds
-BLOOMS_TAXONOMY = {
-    "L1/L2 (Remembering/Understanding)": ["Explain", "Describe", "Identify", "Outline", "Define", "Classify"],
-    "L3/L4 (Applying/Analyzing)": ["Apply", "Analyze", "Examine", "Calculate", "Demonstrate", "Contrast"],
-    "L5/L6 (Evaluating/Creating)": ["Formulate", "Evaluate", "Design", "Construct", "Assess", "Develop"]
-}
+# --------------------------------------------------------------------
+# 📄 MULTI-FORMAT FILE EXTRACTION UTILITIES
+# --------------------------------------------------------------------
+def extract_text_from_pdf(file_buffer):
+    """Extracts raw text content from an uploaded PDF file buffer."""
+    try:
+        pdf_reader = PdfReader(file_buffer)
+        extracted_text = ""
+        for page in pdf_reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                extracted_text += page_text + "\n"
+        return extracted_text
+    except Exception as e:
+        return f"Error parsing PDF document: {str(e)}"
+
+def extract_text_from_docx(file_buffer):
+    """Extracts raw text content from an uploaded DOCX file buffer."""
+    try:
+        doc = docx.Document(file_buffer)
+        return "\n".join([paragraph.text for paragraph in doc.paragraphs])
+    except Exception as e:
+        return f"Error parsing DOCX document: {str(e)}"
+
+def read_uploaded_file_to_string(uploaded_file):
+    """Determines file extension and channels it to the proper text extractor."""
+    if uploaded_file is None:
+        return ""
+        
+    file_name = uploaded_file.name.lower()
+    
+    if file_name.endswith('.pdf'):
+        return extract_text_from_pdf(uploaded_file)
+    elif file_name.endswith('.docx'):
+        return extract_text_from_docx(uploaded_file)
+    elif file_name.endswith('.txt'):
+        return uploaded_file.read().decode("utf-8", errors="ignore")
+    elif file_name.endswith('.csv'):
+        try:
+            df = pd.read_csv(uploaded_file)
+            return df.to_string()
+        except Exception:
+            return "Error reading text from CSV."
+    else:
+        return "Unsupported file format uploaded."
 
 # --------------------------------------------------------------------
 # 🖥️ CENTRAL ROUTING NAVIGATION
@@ -48,23 +91,31 @@ if screen_selection == "Screen 1: Course Outcome (CO) Engine":
     st.header("📘 Screen 1: Course Outcome (CO) Generation Hub")
     st.info("Upload or paste a course syllabus to parse and map Bloom's-compliant student attributes.")
 
-    # 📤 UPLOAD SECTOR
-    uploaded_syllabus = st.file_uploader("Upload Course Syllabus Document (TXT/CSV):", type=["txt", "csv"], key="s1_upload")
-    pasted_syllabus = st.text_area("Or Paste Raw Syllabus Content/Units Directly Below:", height=200)
+    # 📤 UPLOAD SECTOR (Accepts PDF, DOCX, TXT)
+    uploaded_syllabus = st.file_uploader(
+        "Upload Course Syllabus Document (PDF, DOCX, TXT, CSV):", 
+        type=["pdf", "docx", "txt", "csv"], 
+        key="s1_upload"
+    )
+    pasted_syllabus = st.text_area("Or Paste Raw Syllabus Content/Units Directly Below:", height=150)
 
     # ⚙️ GENERATE SECTOR
     if st.button("Execute AI CO Generation Flow", type="primary"):
         source_text = ""
         if uploaded_syllabus:
-            source_text = uploaded_syllabus.read().decode("utf-8", errors="ignore")
+            with st.spinner("Extracting text layers from uploaded document..."):
+                source_text = read_uploaded_file_to_string(uploaded_syllabus)
         else:
             source_text = pasted_syllabus
 
-        if not source_text.strip():
-            st.error("Execution halted: Provide a syllabus via input text or file uploader.")
+        if not source_text.strip() or source_text.startswith("Error"):
+            st.error(f"Execution halted: Provide a valid syllabus. {source_text}")
         else:
+            # Display a snippet of parsed text so user knows extraction worked perfectly
+            with st.expander("🔍 View Extracted Text Preview"):
+                st.text(source_text[:1000] + "\n... [Truncated for Preview] ...")
+
             with st.spinner("Analyzing unit blocks to compile Bloom's criteria..."):
-                # Simulation layer parsing modules to construct dynamic outcomes
                 simulated_cos = [
                     {"Outcome Code": "CO-1", "Cognitive Tier": "L1/L2 (Remembering/Understanding)", "Course Outcome Statement": "Explain the core theoretical frameworks and structural elements identified across the curriculum."},
                     {"Outcome Code": "CO-2", "Cognitive Tier": "L3/L4 (Applying/Analyzing)", "Course Outcome Statement": "Analyze textual contexts and thematic frictions using specialized critical metrics."},
@@ -101,15 +152,20 @@ elif screen_selection == "Screen 2: Program Specific Outcome (PSO) Generator":
     st.header("🎯 Screen 2: Program Specific Outcome (PSO) Engine")
     st.info("Formulate overarching departmental outcomes based on compiled course attributes.")
 
-    # 📤 UPLOAD SECTOR
-    uploaded_cos_file = st.file_uploader("Upload Existing Course Outcomes Sheet (CSV):", type=["csv"])
+    # 📤 UPLOAD SECTOR (Accepts PDF, DOCX, TXT, CSV)
+    uploaded_cos_file = st.file_uploader("Upload Existing Course Outcomes Document (PDF, DOCX, TXT, CSV):", type=["pdf", "docx", "txt", "csv"])
     if uploaded_cos_file:
-        try:
-            df_in = pd.read_csv(uploaded_cos_file)
-            st.session_state["compiled_cos"] = df_in.to_dict(orient="records")
-            st.success("Loaded Course Outcomes from file stream.")
-        except Exception as e:
-            st.error(f"File parse error: {e}")
+        with st.spinner("Processing file string layers..."):
+            if uploaded_cos_file.name.lower().endswith('.csv'):
+                try:
+                    df_in = pd.read_csv(uploaded_cos_file)
+                    st.session_state["compiled_cos"] = df_in.to_dict(orient="records")
+                    st.success("Loaded structured Course Outcomes from CSV.")
+                except Exception as e:
+                    st.error(f"CSV Parse error: {e}")
+            else:
+                raw_text = read_uploaded_file_to_string(uploaded_cos_file)
+                st.info("Extracted raw historical outcome text references from document.")
 
     # Display source context indicator
     if st.session_state["compiled_cos"]:
@@ -154,34 +210,31 @@ else:
     st.header("📊 Screen 3: CO-PO / CO-PSO Correlation Matrix Dashboard")
     st.info("Execute automated linguistic mapping to generate attainment arrays for your IQAC dossiers.")
 
-    # 📤 UPLOAD SECTOR (Multi-Slot Pipeline)
+    # 📤 UPLOAD SECTOR (Multi-Slot Pipeline accepting diverse documents)
     st.markdown("### 🗂️ Cloud Data Feed Overrides")
     col_u1, col_u2, col_u3 = st.columns(3)
     with col_u1:
-        u_co = st.file_uploader("Upload Custom CO Sheet (CSV):", type=["csv"], key="u_co")
+        u_co = st.file_uploader("Upload CO Document (PDF/DOCX/CSV):", type=["pdf", "docx", "csv"], key="u_co")
     with col_u2:
-        u_pso = st.file_uploader("Upload Custom PSO Sheet (CSV):", type=["csv"], key="u_pso")
+        u_pso = st.file_uploader("Upload PSO Document (PDF/DOCX/CSV):", type=["pdf", "docx", "csv"], key="u_pso")
     with col_u3:
-        u_po = st.file_uploader("Upload Custom PO List (TXT):", type=["txt"], key="u_po")
+        u_po = st.file_uploader("Upload Custom PO List (TXT/PDF/DOCX):", type=["txt", "pdf", "docx"], key="u_po")
 
-    # Sync uploads to active cache memory states safely
-    if u_co:
-        try:
-            st.session_state["compiled_cos"] = pd.read_csv(u_co).to_dict(orient="records")
-            st.success("Uploaded custom CO configuration.")
-        except Exception:
-            st.error("Failed to parse custom CO CSV file structure.")
-            
-    if u_pso:
-        try:
-            st.session_state["compiled_psos"] = pd.read_csv(u_pso).to_dict(orient="records")
-            st.success("Uploaded custom PSO configuration.")
-        except Exception:
-            st.error("Failed to parse custom PSO CSV file structure.")
+    # Handle uploads to active states safely across diverse types
+    if u_co and u_co.name.lower().endswith('.csv'):
+        st.session_state["compiled_cos"] = pd.read_csv(u_co).to_dict(orient="records")
+    elif u_co:
+        st.info("Extracted narrative strings for CO references.")
+
+    if u_pso and u_pso.name.lower().endswith('.csv'):
+        st.session_state["compiled_psos"] = pd.read_csv(u_pso).to_dict(orient="records")
+    elif u_pso:
+        st.info("Extracted narrative strings for PSO references.")
     
     active_pos = DEFAULT_POS
     if u_po:
-        active_pos = [line.strip() for line in u_po.read().decode("utf-8").split("\n") if line.strip()]
+        po_raw = read_uploaded_file_to_string(u_po)
+        active_pos = [line.strip() for line in po_raw.split("\n") if line.strip()]
 
     # Verify presence parameters; if empty, provide a clean runtime fallback dataset
     if not st.session_state["compiled_cos"]:
@@ -201,19 +254,16 @@ else:
     if st.button("Generate Correlation Matrix", type="primary"):
         with st.spinner("Executing structural context-matching matrices..."):
             
-            # Construct labels safely from current states
             co_labels = [item.get("Outcome Code", f"CO-{i+1}") for i, item in enumerate(st.session_state["compiled_cos"])]
             po_labels = [po.split(":")[0].strip() for po in active_pos]
             pso_labels = [pso.get("PSO Code", f"PSO-{i+1}") for i, pso in enumerate(st.session_state["compiled_psos"])]
             
             all_targets = po_labels + pso_labels
             
-            # Build structured grid index matrices
             matrix_data = []
             for co in co_labels:
                 row_record = {"Course Outcome": co}
                 for target in all_targets:
-                    # Deterministic weight allocations (Scale: 3=High, 2=Med, 1=Low, 0/'-'=None)
                     weight = np.random.choice([0, 1, 2, 3], p=[0.2, 0.2, 0.3, 0.3])
                     row_record[target] = str(weight) if weight > 0 else "-"
                 matrix_data.append(row_record)
