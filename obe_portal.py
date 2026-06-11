@@ -11,6 +11,22 @@ import docx
 st.set_page_config(page_title="Institutional OBE Mapping Portal", layout="wide", page_icon="🎓")
 
 # --------------------------------------------------------------------
+# 🪐 GLOBAL INSTITUTIONAL COMPLIANCE CONSTANTS (NAAC / NBA STANDARDS)
+# --------------------------------------------------------------------
+DEFAULT_PEOS = [
+    "PEO-1: Career Advancement & Core Employability in Diverse Sectors",
+    "PEO-2: Higher Studies, Research Innovations, and Lifelong Learning",
+    "PEO-3: Professional Ethics, Leadership, and Social Responsibility"
+]
+
+DEFAULT_POS = [
+    "PO-1: Critical Thinking & Analytical Reasoning",
+    "PO-2: Effective Communication & Digital Literacy",
+    "PO-3: Social Responsibility, Ethics & Heritage Awareness",
+    "PO-4: Research Orientation & Problem Solving Skills"
+]
+
+# --------------------------------------------------------------------
 # 🪐 INTUITIVE KEYWORD-BASED OBE GENERATION ENGINE
 # --------------------------------------------------------------------
 def parse_syllabus_to_units(text):
